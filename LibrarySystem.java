@@ -67,7 +67,8 @@ public class LibrarySystem {
     public void saveUsers() {
         try (BufferedWriter bw = new BufferedWriter(new FileWriter("users.txt"))) {
             for (User u : users) {
-                bw.write(u.getId() + "," + u.getName() + "," + u.getPassword() + "," + u.getRole() + "\n");
+                bw.write(u.getId() + "," + u.getName() + "," + u.getPassword() + "," + u.getRole());
+                bw.newLine();
             }
         } catch (IOException e) {
             System.out.println("Error writing users.txt: " + e.getMessage());
@@ -77,7 +78,8 @@ public class LibrarySystem {
     public void saveBooks() {
         try (BufferedWriter bw = new BufferedWriter(new FileWriter("books.txt"))) {
             for (Book b : books) {
-                bw.write(b.getBookId() + "," + b.getTitle() + "," + b.getAuthor() + "," + b.isAvailable() + "\n");
+                bw.write(b.getBookId() + "," + b.getTitle() + "," + b.getAuthor() + "," + b.isAvailable());
+                bw.newLine();
             }
         } catch (IOException e) {
             System.out.println("Error writing books.txt: " + e.getMessage());
@@ -87,16 +89,17 @@ public class LibrarySystem {
     public void saveTransactions() {
         try (BufferedWriter bw = new BufferedWriter(new FileWriter("transactions.txt"))) {
             for (Transaction t : transactions) {
-                String returned = t.getDateReturned() == null ? "null" : t.getDateReturned().toString();
-                bw.write(t.getTransactionId() + "," + t.getUserId() + "," + t.getBookId() + "," + t.getDateBorrowed() + "," + returned + "\n");
+                String returned = (t.getDateReturned() == null) ? "null" : t.getDateReturned().toString();
+                bw.write(t.getTransactionId() + "," + t.getUserId() + "," + t.getBookId() + "," + t.getDateBorrowed() + "," + returned);
+                bw.newLine();
             }
         } catch (IOException e) {
             System.out.println("Error writing transactions.txt: " + e.getMessage());
         }
     }
 
-    // Login method
-    public boolean login(String username, String password) throws InvalidOperationException {
+    // Simple login implementation (throws custom exception on failure)
+    private boolean login(String username, String password) throws InvalidOperationException {
         for (User u : users) {
             if (u.getName().equals(username) && u.getPassword().equals(password)) {
                 loggedInUser = u;
@@ -106,7 +109,6 @@ public class LibrarySystem {
         throw new InvalidOperationException("Invalid username or password.");
     }
 
-    // Display menu
     public void displayMenu() {
         Scanner sc = new Scanner(System.in);
         System.out.println("Welcome to the Library Management System");
@@ -115,7 +117,6 @@ public class LibrarySystem {
         String username = sc.nextLine();
         System.out.print("Password: ");
         String password = sc.nextLine();
-
         int attempts = 3;
         boolean loggedIn = false;
         while (attempts > 0) {
@@ -138,20 +139,16 @@ public class LibrarySystem {
                 }
             }
         }
-
         if (!loggedIn || loggedInUser == null) {
             return;
         }
-
         System.out.println("Login successful! Welcome, " + loggedInUser.getName() + ".");
-
         // Load borrowed books for user
         for (Transaction t : transactions) {
             if (t.getUserId().equals(loggedInUser.getId()) && t.getDateReturned() == null) {
                 loggedInUser.getBorrowedBooks().add(t.getBookId());
             }
         }
-
         boolean running = true;
         while (running) {
             System.out.println("\n1. View All Books");
@@ -166,9 +163,13 @@ public class LibrarySystem {
                 System.out.println("4. Exit");
             }
             System.out.print("Enter choice: ");
-            int choice = sc.nextInt();
-            sc.nextLine(); // consume newline
-
+            int choice;
+            try {
+                choice = Integer.parseInt(sc.nextLine().trim());
+            } catch (NumberFormatException nfe) {
+                System.out.println("Invalid input.");
+                continue;
+            }
             try {
                 switch (choice) {
                     case 1:
@@ -209,7 +210,6 @@ public class LibrarySystem {
                 System.out.println("Error: " + e.getMessage());
             }
         }
-
         // Save data on exit
         saveUsers();
         saveBooks();
@@ -223,8 +223,13 @@ public class LibrarySystem {
         System.out.println("2. Search by Title");
         System.out.println("3. Search by Author");
         System.out.print("Enter choice: ");
-        int choice = sc.nextInt();
-        sc.nextLine();
+        int choice;
+        try {
+            choice = Integer.parseInt(sc.nextLine().trim());
+        } catch (NumberFormatException nfe) {
+            System.out.println("Invalid input.");
+            return;
+        }
         List<Book> toDisplay = new ArrayList<>();
         if (choice == 1) {
             toDisplay = books;
@@ -321,11 +326,230 @@ public class LibrarySystem {
         System.out.println("3. Delete User");
         System.out.println("4. Display Users");
         System.out.println("5. Exit");
-        int choice = sc.nextInt();
-        sc.nextLine();
+        System.out.print("Enter choice: ");
+        int choice;
+        try {
+            choice = Integer.parseInt(sc.nextLine().trim());
+        } catch (NumberFormatException nfe) {
+            System.out.println("Invalid input.");
+            return;
+        }
         switch (choice) {
             case 1:
                 addUser(sc);
                 break;
             case 2:
                 updateUser(sc);
+                break;
+            case 3:
+                deleteUser(sc);
+                break;
+            case 4:
+                displayUsers();
+                break;
+            case 5:
+                return;
+            default:
+                System.out.println("Invalid choice.");
+        }
+    }
+
+    private void addUser(Scanner sc) {
+        System.out.print("Enter Name: ");
+        String name = sc.nextLine();
+        System.out.print("Enter Password: ");
+        String password = sc.nextLine();
+        System.out.print("Enter Role (user/admin): ");
+        String role = sc.nextLine();
+        // Generate ID
+        String id = "U" + String.format("%03d", users.size() + 1);
+        User newUser = new User(id, name, password, role);
+        users.add(newUser);
+        System.out.println("User added successfully!");
+    }
+
+    private void updateUser(Scanner sc) {
+        System.out.print("Enter User ID: ");
+        String id = sc.nextLine();
+        User user = findUser(id);
+        if (user == null) {
+            System.out.println("User not found.");
+            return;
+        }
+        System.out.print("Enter new Name: ");
+        String name = sc.nextLine();
+        System.out.print("Enter new Password: ");
+        String password = sc.nextLine();
+        System.out.print("Enter new Role: ");
+        String role = sc.nextLine();
+        user.setName(name);
+        user.setPassword(password);
+        user.setRole(role);
+        System.out.println("User updated successfully!");
+    }
+
+    private void deleteUser(Scanner sc) {
+        System.out.print("Enter User ID: ");
+        String id = sc.nextLine();
+        User user = findUser(id);
+        if (user == null) {
+            System.out.println("User not found.");
+            return;
+        }
+        users.remove(user);
+        System.out.println("User deleted successfully!");
+    }
+
+    private void displayUsers() {
+        for (User u : users) {
+            // Polymorphism: Using Person reference for User
+            Person p = u;
+            p.displayInfo();
+        }
+    }
+
+    // Admin: Manage Catalogue
+    private void manageCatalogue(Scanner sc) {
+        System.out.println("1. Add Book");
+        System.out.println("2. Update Book");
+        System.out.println("3. Delete Book");
+        System.out.println("4. Display Books");
+        System.out.println("5. Exit");
+        System.out.print("Enter choice: ");
+        int choice;
+        try {
+            choice = Integer.parseInt(sc.nextLine().trim());
+        } catch (NumberFormatException nfe) {
+            System.out.println("Invalid input.");
+            return;
+        }
+        switch (choice) {
+            case 1:
+                addBook(sc);
+                break;
+            case 2:
+                updateBook(sc);
+                break;
+            case 3:
+                deleteBook(sc);
+                break;
+            case 4:
+                displayBooks();
+                break;
+            case 5:
+                return;
+            default:
+                System.out.println("Invalid choice.");
+        }
+    }
+
+    private void addBook(Scanner sc) {
+        System.out.print("Enter Title: ");
+        String title = sc.nextLine();
+        System.out.print("Enter Author: ");
+        String author = sc.nextLine();
+        // Generate ID
+        String id = "B" + String.format("%03d", books.size() + 1);
+        Book newBook = new Book(id, title, author, true);
+        books.add(newBook);
+        System.out.println("Book added successfully!");
+    }
+
+    private void updateBook(Scanner sc) {
+        System.out.print("Enter Book ID: ");
+        String id = sc.nextLine();
+        Book book = findBook(id);
+        if (book == null) {
+            System.out.println("Book not found.");
+            return;
+        }
+        System.out.print("Enter new Title: ");
+        String title = sc.nextLine();
+        System.out.print("Enter new Author: ");
+        String author = sc.nextLine();
+        book.setTitle(title);
+        book.setAuthor(author);
+        System.out.println("Book updated successfully!");
+        
+    }
+
+    private void deleteBook(Scanner sc) {
+        System.out.print("Enter Book ID: ");
+        String id = sc.nextLine();
+        Book book = findBook(id);
+        if (book == null) {
+            System.out.println("Book not found.");
+            return;
+        }
+        books.remove(book);
+        System.out.println("Book deleted successfully!");
+    }
+
+    private void displayBooks() {
+        for (Book b : books) {
+            b.displayBookDetails();
+        }
+    }
+
+    // Admin: View Transactions
+    private void viewTransactions(Scanner sc) {
+        System.out.println("1. View All Transactions");
+        System.out.println("2. View By User");
+        System.out.println("3. View By Book");
+        System.out.println("4. Exit");
+        System.out.print("Enter choice: ");
+        int choice;
+        try {
+            choice = Integer.parseInt(sc.nextLine().trim());
+        } catch (NumberFormatException nfe) {
+            System.out.println("Invalid input.");
+            return;
+        }
+        switch (choice) {
+            case 1:
+                for (Transaction t : transactions) {
+                    t.displayTransaction();
+                }
+                break;
+            case 2:
+                System.out.print("Enter User ID: ");
+                String userId = sc.nextLine();
+                for (Transaction t : transactions) {
+                    if (t.getUserId().equals(userId)) {
+                        t.displayTransaction();
+                    }
+                }
+                break;
+            case 3:
+                System.out.print("Enter Book ID: ");
+                String bookId = sc.nextLine();
+                for (Transaction t : transactions) {
+                    if (t.getBookId().equals(bookId)) {
+                        t.displayTransaction();
+                    }
+                }
+                break;
+            case 4:
+                return;
+            default:
+                System.out.println("Invalid choice.");
+        }
+    }
+
+    // Main method to run the system
+    public static void main(String[] args) {
+        LibrarySystem system = new LibrarySystem();
+        system.loadUsers();
+        system.loadBooks();
+        system.loadTransactions();
+        system.displayMenu();
+    }
+
+    // Custom exception used by this class
+    private static class InvalidOperationException extends Exception {
+        public InvalidOperationException(String message) {
+            super(message);
+        }
+    }
+}
+
